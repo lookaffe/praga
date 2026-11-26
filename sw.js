@@ -1,4 +1,4 @@
-const CACHE = "praga-v4";
+const CACHE = "praga-v5";
 const SHELL = ["./", "./index.html", "./places.js", "./config.js", "./manifest.webmanifest", "./favicon.png", "./icon-192.png", "./icon-512.png", "./vendor/leaflet.js", "./vendor/leaflet.css"];
 
 self.addEventListener("install", (e) => {

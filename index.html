@@ -80,6 +80,10 @@ import { firebaseConfig } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+// Indicazioni: partenza = posizione attuale (Google Maps la usa se manca "origin").
+// I punti iniziali hanno coordinate approssimate, quindi si cerca per nome; i punti aggiunti dal gruppo (exact) usano le coordinate.
+const dirUrl = (p, mode) => "https://www.google.com/maps/dir/?api=1&travelmode=" + mode + "&destination=" +
+  (p.exact ? `${p.lat},${p.lng}` : encodeURIComponent(`${p.name} ${p.area || ""} Praha`));
 const gmaps = (p) => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(`${p.name} ${p.area || ""} Praha`);
 
 // ---------- Mappa ----------
@@ -116,7 +120,8 @@ function pinIcon(cat) {
 function popupHtml(p, extra = "") {
   return `<b>${esc(p.name)}</b><br><small>${esc(p.area || "")}</small>` +
     (p.note ? `<p style="margin:6px 0">${esc(p.note)}</p>` : "") +
-    `<a href="${gmaps(p)}" target="_blank" rel="noopener">Apri in Google Maps</a>${extra}`;
+    `<a href="${gmaps(p)}" target="_blank" rel="noopener">Apri in Google Maps</a>` +
+    `<div style="margin-top:6px"><a href="${dirUrl(p, "transit")}" target="_blank" rel="noopener">🚇 Con i mezzi</a> · <a href="${dirUrl(p, "walking")}" target="_blank" rel="noopener">🚶 A piedi</a></div>${extra}`;
 }
 for (const p of PLACES) L.marker([p.lat, p.lng], { icon: pinIcon(p.cat) }).bindPopup(popupHtml(p)).addTo(layers[p.cat]);
 L.marker([HOTEL.lat, HOTEL.lng], {
@@ -181,7 +186,7 @@ function connectGroup() {
     for (const [id, p] of Object.entries(data)) {
       if (sharedMarkers[id]) continue;
       const del = ` <a href="#" data-del="${id}" style="color:#b00020">elimina</a>`;
-      const m = L.marker([p.lat, p.lng], { icon: pinIcon(p.cat) }).bindPopup(popupHtml({ ...p, area: p.by ? "aggiunto da " + p.by : "" }, del));
+      const m = L.marker([p.lat, p.lng], { icon: pinIcon(p.cat) }).bindPopup(popupHtml({ ...p, exact: true, area: p.by ? "aggiunto da " + p.by : "" }, del));
       m.on("popupopen", (e) => { const a = e.popup.getElement().querySelector("[data-del]"); if (a) a.onclick = (ev) => { ev.preventDefault(); if (confirm("Eliminare il punto?")) fb.remove(fb.ref(db, `${root}/places/${id}`)); }; });
       (layers[p.cat] || layers.altro).addLayer(m); sharedMarkers[id] = m;
     }
