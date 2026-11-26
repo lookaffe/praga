@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#1b1b1f">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
-<title>Praga 2027</title>
+<title>BirriPraga</title>
 <link rel="stylesheet" href="vendor/leaflet.css">
 <style>
   :root { --bg:#1b1b1f; --panel:#26262c; --text:#f2f2f2; --muted:#a0a0aa; --accent:#f5b301; }
@@ -14,8 +14,8 @@
   html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
   #app { display: flex; flex-direction: column; height: 100%; }
   header { padding: 8px 10px calc(8px); background: var(--panel); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  header h1 { font-size: 16px; margin: 0 8px 0 0; }
-  .chip { border: 1px solid #444; background: transparent; color: var(--text); padding: 6px 10px; border-radius: 16px; font-size: 14px; }
+  header h1 { font-size: 16px; margin: 0; flex: 0 0 100%; }
+  .chip { border: 1px solid #444; background: transparent; color: var(--text); padding: 6px 14px; border-radius: 16px; font-size: 18px; line-height: 1; }
   .chip.on { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
   #map { flex: 1; min-height: 0; }
   footer { background: var(--panel); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; }
@@ -37,11 +37,12 @@
 </head>
 <body>
 <div id="app">
-  <header id="filters"><h1>🍺 Praga 11–14 gen</h1></header>
+  <header id="filters"><h1>BirriPraga</h1></header>
   <div id="warn" class="warn" hidden></div>
   <div id="map"></div>
   <footer>
     <div class="status" id="status">Non condividi la posizione</div>
+    <button class="sec" id="btnAdd">＋ Punto</button>
     <button class="sec" id="btnGroup">Gruppo</button>
     <button class="main" id="btnShare">Condividi</button>
   </footer>
@@ -60,6 +61,10 @@
 <dialog id="dlgAdd">
   <form method="dialog" id="formAdd">
     <h3 style="margin:0 0 4px">Aggiungi punto</h3>
+    <label>Cerca per nome o incolla un link lungo di Google Maps</label>
+    <div style="display:flex;gap:6px"><input id="addQ" autocomplete="off" placeholder="es. BeerGeek Praga"><button type="button" class="sec" id="btnSearch">Cerca</button></div>
+    <div id="results" style="margin-top:6px;max-height:140px;overflow:auto"></div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:6px"><button type="button" class="sec" id="btnCenter" style="font-size:12px;padding:6px 8px">Usa centro mappa</button><span id="picked" style="font-size:12px;color:var(--muted)">Nessuna posizione scelta</span></div>
     <label>Nome</label><input id="addName" maxlength="50" required autocomplete="off">
     <label>Categoria</label><select id="addCat"></select>
     <label>Nota (opzionale)</label><input id="addNote" maxlength="120" autocomplete="off">
@@ -91,7 +96,7 @@ for (const k of Object.keys(CATEGORIES)) layers[k] = L.layerGroup().addTo(map);
 const filters = $("filters");
 for (const [k, c] of Object.entries(CATEGORIES)) {
   const b = document.createElement("button");
-  b.className = "chip on"; b.textContent = `${c.emoji} ${c.label}`;
+  b.className = "chip on"; b.textContent = c.emoji; b.title = b.ariaLabel = c.label;
   b.onclick = () => {
     if (active.has(k)) { active.delete(k); map.removeLayer(layers[k]); b.classList.remove("on"); }
     else { active.add(k); map.addLayer(layers[k]); b.classList.add("on"); }
@@ -219,13 +224,68 @@ $("formGroup").addEventListener("submit", (ev) => {
 $("dlgGroup").addEventListener("close", () => {});
 
 // ---------- Aggiungi punto (pressione lunga) ----------
-let pending = null;
-map.on("contextmenu", (e) => {
+let pending = null, pickedMarker = null;
+function setPicked(lat, lng, label) {
+  pending = { lat, lng };
+  $("picked").textContent = `Posizione: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  if (label && !$("addName").value) $("addName").value = label.slice(0, 50);
+  if (pickedMarker) pickedMarker.remove();
+  pickedMarker = L.circleMarker([lat, lng], { radius: 9, color: "#fff", fillColor: "#ff4081", fillOpacity: 1, weight: 3 }).addTo(map);
+  map.setView([lat, lng], Math.max(map.getZoom(), 16));
+}
+function openAdd(latlng) {
   if (!db || !code) { alert("Entra prima in un gruppo (con Firebase configurato) per aggiungere punti condivisi."); return; }
-  pending = e.latlng; $("addName").value = ""; $("addNote").value = ""; $("dlgAdd").showModal();
-});
+  pending = null; $("addName").value = ""; $("addNote").value = ""; $("addQ").value = ""; $("results").innerHTML = ""; $("picked").textContent = "Nessuna posizione scelta";
+  $("dlgAdd").showModal();
+  if (latlng) setPicked(latlng.lat, latlng.lng, "");
+}
+$("dlgAdd").addEventListener("close", () => { if (pickedMarker) { pickedMarker.remove(); pickedMarker = null; } });
+map.on("contextmenu", (e) => openAdd(e.latlng));
+$("btnAdd").onclick = () => openAdd(null);
+$("btnCenter").onclick = () => { const c = map.getCenter(); setPicked(c.lat, c.lng, ""); };
+
+// Estrae coordinate (e nome) da un link lungo di Google Maps. Restituisce null se non riconosciuto.
+function parseGoogleLink(s) {
+  const num = "(-?\\d{1,3}\\.\\d+)";
+  const m = s.match(new RegExp(`!3d${num}!4d${num}`)) || s.match(new RegExp(`@${num},${num}`)) || s.match(new RegExp(`[?&](?:q|query|ll|center|destination)=${num}(?:,|%2C)${num}`));
+  if (!m) return null;
+  const pm = s.match(/\/place\/([^/@?]+)/);
+  let name = ""; if (pm) { try { name = decodeURIComponent(pm[1].replace(/\+/g, " ")); } catch { name = pm[1]; } }
+  return { lat: parseFloat(m[1]), lng: parseFloat(m[2]), name };
+}
+window.__parseGoogleLink = parseGoogleLink;
+
+async function doSearch() {
+  const q = $("addQ").value.trim(); const box = $("results"); box.innerHTML = "";
+  if (!q) return;
+  if (/^https?:\/\//i.test(q)) {
+    if (/goo\.gl|maps\.app/i.test(q)) { box.textContent = "Link corto non leggibile: apri il luogo nel browser e copia l'indirizzo lungo dalla barra, oppure cerca per nome."; return; }
+    const r = parseGoogleLink(q);
+    if (r) { setPicked(r.lat, r.lng, r.name); box.textContent = "Coordinate lette dal link."; } else box.textContent = "Nessuna coordinata trovata nel link.";
+    return;
+  }
+  box.textContent = "Cerco…"; $("btnSearch").disabled = true;
+  try {
+    const base = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=it&q=" + encodeURIComponent(q);
+    let res = await (await fetch(base + "&viewbox=14.25,50.16,14.62,49.96&bounded=1")).json();
+    if (!res.length) res = await (await fetch(base + "&viewbox=14.25,50.16,14.62,49.96&bounded=0&countrycodes=cz")).json();
+    box.innerHTML = "";
+    if (!res.length) { box.textContent = "Nessun risultato: prova un nome diverso, oppure usa pressione lunga sulla mappa."; return; }
+    for (const r of res) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "sec"; b.style.cssText = "display:block;width:100%;text-align:left;margin-bottom:4px;font-size:12px";
+      const short = r.display_name.split(",").slice(0, 3).join(","); b.textContent = short;
+      b.onclick = () => setPicked(parseFloat(r.lat), parseFloat(r.lon), r.name || r.display_name.split(",")[0]);
+      box.appendChild(b);
+    }
+  } catch (e) { box.textContent = "Ricerca non riuscita (rete?). Usa pressione lunga sulla mappa."; }
+  finally { $("btnSearch").disabled = false; }
+}
+$("btnSearch").onclick = doSearch;
+$("addQ").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doSearch(); } });
+
 $("formAdd").addEventListener("submit", (ev) => {
-  if ((ev.submitter && ev.submitter.value === "cancel") || !pending) return;
+  if (ev.submitter && ev.submitter.value === "cancel") return;
+  if (!pending) { ev.preventDefault(); $("picked").textContent = "Scegli prima una posizione (cerca, o 'Usa centro mappa')"; return; }
   const nm = $("addName").value.trim(); if (!nm) return;
   fb.push(fb.ref(db, `groups/${code}/places`), { name: nm, cat: $("addCat").value, note: $("addNote").value.trim(), lat: pending.lat, lng: pending.lng, by: name, ts: Date.now() }).catch((e) => alert("Salvataggio fallito: " + e.message));
   pending = null;
