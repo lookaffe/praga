@@ -63,19 +63,18 @@
   <div id="map"></div>
   <footer>
     <div class="status" id="status">Non condividi la posizione</div>
-    <button class="sec" id="btnGroup">Gruppo</button>
+    <button class="sec" id="btnGroup">Io</button>
     <button class="main" id="btnShare">Condividi</button>
   </footer>
 </div>
 
 <dialog id="dlgGroup">
   <form method="dialog" id="formGroup">
-    <h3 style="margin:0 0 4px">Entra nel gruppo</h3>
-    <p style="margin:0;font-size:13px;color:var(--muted)">Tutti scrivete lo stesso codice. Chi lo conosce vede le vostre posizioni, quindi scegline uno non banale.</p>
+    <h3 style="margin:0 0 4px">Chi sei?</h3>
+    <p style="margin:0;font-size:13px;color:var(--muted)">Il nome compare sulla mappa agli altri quando condividi la posizione.</p>
     <p class="hint">Il tuo ID (serve per essere admin del quiz): <b id="myId"></b></p>
     <label>Il tuo nome</label><input id="inName" maxlength="20" required autocomplete="off">
-    <label>Codice gruppo</label><input id="inCode" maxlength="30" required autocomplete="off" autocapitalize="none">
-    <div class="row"><button class="sec" value="cancel" formnovalidate>Annulla</button><button class="main" value="ok">Entra</button></div>
+    <div class="row"><button class="sec" value="cancel" formnovalidate>Annulla</button><button class="main" value="ok">Salva</button></div>
   </form>
 </dialog>
 
@@ -121,6 +120,7 @@
 <script type="module">
 import { CATEGORIES, PLACES, HOTEL } from "./places.js";
 import { icon } from "./icons.js";
+import { GROUP_CODE } from "./settings.js";
 import { REVEAL_M, ANSWER_M, pointsForRank, distM, MAX_USER_QUESTIONS, AUTHOR_SHARE, ADMIN_UIDS, QUIZ_SEED } from "./quiz.js";
 import { firebaseConfig } from "./config.js";
 
@@ -183,7 +183,7 @@ const store = {
 let uid = store.get("uid");
 if (!uid) { uid = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)).slice(0, 12); store.set("uid", uid); }
 let name = store.get("name") || "";
-let code = store.get("code") || "";
+const code = GROUP_CODE;
 let sharing = false, watchId = null, lastWrite = 0, myPos = null, myAcc = null;
 const isAdmin = ADMIN_UIDS.includes(uid);
 let quizDb = {}, questions = [];
@@ -251,9 +251,9 @@ function connectGroup() {
 // ---------- Posizione ----------
 let meMarker = null;
 function startSharing() {
-  if (!code || !name) { openGroup(); return; }
+  if (!name) { openGroup(); return; }
   if (!navigator.geolocation) { alert("Geolocalizzazione non supportata."); return; }
-  sharing = true; $("btnShare").textContent = "Stop"; $("status").textContent = `${name} · gruppo "${code}" · posizione attiva`;
+  sharing = true; $("btnShare").textContent = "Stop"; $("status").textContent = `${name} · posizione attiva`;
   watchId = navigator.geolocation.watchPosition((pos) => {
     myPos = [pos.coords.latitude, pos.coords.longitude]; myAcc = pos.coords.accuracy;
     const icon = L.divIcon({ className: "", html: `<div class="me" style="background:#2979ff">Io</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
@@ -276,17 +276,21 @@ function stopSharing() {
 }
 $("btnShare").onclick = () => (sharing ? stopSharing() : startSharing());
 
-// ---------- Dialog gruppo ----------
-function openGroup() { $("myId").textContent = uid; $("inName").value = name; $("inCode").value = code; $("dlgGroup").showModal(); }
+// Prima di aggiungere punti o giocare servono Firebase e un nome.
+function ready() {
+  if (!db) { alert("Firebase non configurato: questa funzione richiede il database condiviso (vedi README)."); return false; }
+  if (!name) { openGroup(); return false; }
+  return true;
+}
+// ---------- Dialog profilo ----------
+function openGroup() { $("myId").textContent = uid; $("inName").value = name; $("dlgGroup").showModal(); }
 $("btnGroup").onclick = openGroup;
 $("formGroup").addEventListener("submit", (ev) => {
   if (ev.submitter && ev.submitter.value === "cancel") return;
-  const n = $("inName").value.trim(), c = $("inCode").value.trim().toLowerCase().replace(/[.#$\[\]\/]/g, "-");
-  if (!n || !c) return;
-  const wasSharing = sharing; if (wasSharing) stopSharing();
-  name = n; code = c; store.set("name", n); store.set("code", c); connectGroup();
-  $("status").textContent = `${name} · gruppo "${code}"`;
-  if (!fbReady) $("status").textContent += " (senza Firebase)";
+  const n = $("inName").value.trim(); if (!n) return;
+  name = n; store.set("name", n);
+  $("status").textContent = sharing ? `${name} · posizione attiva` : "Non condividi la posizione";
+  if (!db) $("status").textContent += " (senza Firebase)";
 });
 $("dlgGroup").addEventListener("close", () => {});
 
@@ -301,7 +305,7 @@ function setPicked(lat, lng, label) {
   map.setView([lat, lng], Math.max(map.getZoom(), 16));
 }
 function openAdd(latlng) {
-  if (!db || !code) { alert("Entra prima in un gruppo (con Firebase configurato) per aggiungere punti condivisi."); return; }
+  if (!ready()) return;
   pending = null; $("addName").value = ""; $("addNote").value = ""; $("addQ").value = ""; $("results").innerHTML = ""; $("picked").textContent = "Nessuna posizione scelta";
   $("dlgAdd").showModal();
   if (latlng) setPicked(latlng.lat, latlng.lng, "");
@@ -468,7 +472,7 @@ function renderBoard() {
   $("boardInfo").textContent = isAdmin ? "Sei admin: domande illimitate, senza punti autore." : `Domande scritte da te: ${myQuestionCount()}/${MAX_USER_QUESTIONS}. Ogni risposta corretta alle tue domande ti dà gli stessi punti di chi risponde.`;
 }
 $("btnQuiz").onclick = () => {
-  if (!db || !code) { alert("Entra in un gruppo (con Firebase configurato) per giocare al quiz."); return; }
+  if (!ready()) return;
   renderBoard(); $("dlgBoard").showModal();
 };
 $("btnBoardClose").onclick = () => $("dlgBoard").close();
@@ -505,7 +509,8 @@ $("formQ").addEventListener("submit", (ev) => {
   qPending = null;
 });
 
-if (name && code) { connectGroup(); $("status").textContent = `${name} · gruppo "${code}"`; }
+if (code) connectGroup();
+if (name) $("status").textContent = name + (db ? "" : " (senza Firebase)");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
 </body>
