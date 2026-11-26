@@ -15,7 +15,7 @@
   html, body { height: 100%; margin: 0; background: var(--cream); color: var(--brown); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
   #app { display: flex; flex-direction: column; height: 100%; }
   header { padding: 10px 12px; background: var(--brown); color: var(--cream); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,.35); z-index: 1000; }
-  header h1 { font-family: Georgia, "Times New Roman", serif; font-size: 22px; letter-spacing: .5px; margin: 0; flex: 0 0 100%; display: flex; align-items: center; gap: 10px; }
+  header h1 { font-family: Georgia, "Times New Roman", serif; font-size: 22px; letter-spacing: .5px; margin: 0; flex: 1 0 calc(100% - 56px); min-width: 0; display: flex; align-items: center; gap: 10px; }
   header h1 img { width: 30px; height: 30px; border-radius: 8px; background: #fff; padding: 2px; }
   .chip { border: 1.5px solid var(--brown2); background: transparent; color: var(--cream); padding: 6px 10px; border-radius: 18px; font-size: 18px; line-height: 1; transition: background .15s; }
   .chip.on { background: var(--accent); color: var(--brown); border-color: var(--accent); }
@@ -46,11 +46,19 @@
   .leaflet-tooltip-top:before { border-top-color: var(--brown); }
   .warn { background:#f3d99a; color:#5a3b00; padding:6px 12px; font-size:12px; }
   .stale { opacity:.45; }
+  #btnQuiz { padding: 6px 10px; }
+  .qopt { display:flex; gap:8px; align-items:flex-start; margin:6px 0; font-size:14px; }
+  .qopt input { margin-top:3px; }
+  .qok { color:#1b6e2a; font-weight:700; } .qno { color:#b00020; font-weight:700; }
+  .board { list-style:none; margin:8px 0 0; padding:0; }
+  .board li { display:flex; justify-content:space-between; padding:7px 4px; border-bottom:1px solid var(--cream2); font-size:15px; }
+  .board li.me { font-weight:700; background:#fbe9b7; border-radius:6px; }
+  .hint { font-size:12px; color:var(--muted); margin:6px 0 0; }
 </style>
 </head>
 <body>
 <div id="app">
-  <header id="filters"><h1><img src="icon-192.png" alt="">BirriPraga</h1><button class="main" id="btnAdd">＋ Punto</button></header>
+  <header id="filters"><h1><img src="icon-192.png" alt="">BirriPraga</h1><button class="chip" id="btnQuiz" title="Quiz e classifica" aria-label="Quiz e classifica"></button><button class="main" id="btnAdd">＋ Punto</button></header>
   <div id="warn" class="warn" hidden></div>
   <div id="map"></div>
   <footer>
@@ -64,6 +72,7 @@
   <form method="dialog" id="formGroup">
     <h3 style="margin:0 0 4px">Entra nel gruppo</h3>
     <p style="margin:0;font-size:13px;color:var(--muted)">Tutti scrivete lo stesso codice. Chi lo conosce vede le vostre posizioni, quindi scegline uno non banale.</p>
+    <p class="hint">Il tuo ID (serve per essere admin del quiz): <b id="myId"></b></p>
     <label>Il tuo nome</label><input id="inName" maxlength="20" required autocomplete="off">
     <label>Codice gruppo</label><input id="inCode" maxlength="30" required autocomplete="off" autocapitalize="none">
     <div class="row"><button class="sec" value="cancel" formnovalidate>Annulla</button><button class="main" value="ok">Entra</button></div>
@@ -84,10 +93,35 @@
   </form>
 </dialog>
 
+<dialog id="dlgBoard">
+  <h3 style="margin:0 0 4px">Quiz · classifica</h3>
+  <p class="hint">I punti quiz compaiono sulla mappa entro 500 m e si risponde entro 100 m. Un solo tentativo a domanda. Condividi la posizione per giocare.</p>
+  <ol class="board" id="boardList"></ol>
+  <p class="hint" id="boardInfo"></p>
+  <div class="row"><button class="sec" id="btnBoardClose" type="button">Chiudi</button><button class="main" id="btnNewQ" type="button">＋ Nuova domanda</button></div>
+</dialog>
+
+<dialog id="dlgQ">
+  <form method="dialog" id="formQ">
+    <h3 style="margin:0 0 4px">Nuova domanda quiz</h3>
+    <p class="hint" id="qLimit"></p>
+    <label>Domanda (su qualcosa che si vede sul posto)</label><input id="qText" maxlength="140" required autocomplete="off">
+    <label>Risposte (indica quella giusta)</label>
+    <div id="qOpts"></div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap">
+      <button type="button" class="sec" id="qHere" style="font-size:12px;padding:6px 8px">Qui dove sono</button>
+      <button type="button" class="sec" id="qCenter" style="font-size:12px;padding:6px 8px">Centro mappa</button>
+      <span id="qPicked" class="hint" style="margin:0">Nessuna posizione scelta</span>
+    </div>
+    <div class="row"><button class="sec" value="cancel" formnovalidate>Annulla</button><button class="main" value="ok">Salva</button></div>
+  </form>
+</dialog>
+
 <script src="vendor/leaflet.js"></script>
 <script type="module">
 import { CATEGORIES, PLACES, HOTEL } from "./places.js";
 import { icon } from "./icons.js";
+import { REVEAL_M, ANSWER_M, pointsForRank, distM, MAX_USER_QUESTIONS, AUTHOR_SHARE, ADMIN_UIDS, QUIZ_SEED } from "./quiz.js";
 import { firebaseConfig } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
@@ -150,12 +184,18 @@ let uid = store.get("uid");
 if (!uid) { uid = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)).slice(0, 12); store.set("uid", uid); }
 let name = store.get("name") || "";
 let code = store.get("code") || "";
-let sharing = false, watchId = null, lastWrite = 0, myPos = null;
+let sharing = false, watchId = null, lastWrite = 0, myPos = null, myAcc = null;
+const isAdmin = ADMIN_UIDS.includes(uid);
+let quizDb = {}, questions = [];
+const quizMarkers = {}, quizState = {};
+const quizLayer = L.layerGroup().addTo(map);
 
 // ---------- Firebase (opzionale) ----------
 const fbReady = Object.values(firebaseConfig).every((v) => v && !String(v).startsWith("INCOLLA"));
 let db = null, fb = null;
-if (!fbReady) {
+if (window.__FAKE_FB) {
+  fb = window.__FAKE_FB; db = {};
+} else if (!fbReady) {
   $("warn").hidden = false;
   $("warn").textContent = "Firebase non configurato: mappa attiva, posizioni live e punti condivisi disattivati (vedi README).";
 } else {
@@ -177,8 +217,11 @@ function connectGroup() {
   unsubs.forEach((u) => u()); unsubs = [];
   Object.values(userMarkers).forEach((m) => m.remove()); for (const k in userMarkers) delete userMarkers[k];
   Object.values(sharedMarkers).forEach((m) => m.remove()); for (const k in sharedMarkers) delete sharedMarkers[k];
+  Object.values(quizMarkers).forEach((m) => m.remove()); for (const k in quizMarkers) delete quizMarkers[k]; for (const k in quizState) delete quizState[k];
+  quizDb = {}; questions = [];
   if (!db || !code) return;
   const root = `groups/${code}`;
+  unsubs.push(fb.onValue(fb.ref(db, `${root}/quiz`), (snap) => { quizDb = snap.val() || {}; setTimeout(refreshQuiz, 0); }));
   unsubs.push(fb.onValue(fb.ref(db, `${root}/users`), (snap) => {
     const data = snap.val() || {}; const now = Date.now();
     for (const id of Object.keys(userMarkers)) if (!data[id]) { userMarkers[id].remove(); delete userMarkers[id]; }
@@ -212,9 +255,10 @@ function startSharing() {
   if (!navigator.geolocation) { alert("Geolocalizzazione non supportata."); return; }
   sharing = true; $("btnShare").textContent = "Stop"; $("status").textContent = `${name} · gruppo "${code}" · posizione attiva`;
   watchId = navigator.geolocation.watchPosition((pos) => {
-    myPos = [pos.coords.latitude, pos.coords.longitude];
+    myPos = [pos.coords.latitude, pos.coords.longitude]; myAcc = pos.coords.accuracy;
     const icon = L.divIcon({ className: "", html: `<div class="me" style="background:#2979ff">Io</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
     if (meMarker) meMarker.setLatLng(myPos); else { meMarker = L.marker(myPos, { icon }).addTo(map); map.setView(myPos, Math.max(map.getZoom(), 15)); }
+    refreshQuiz();
     const now = Date.now();
     if (db && now - lastWrite > 15000) {
       lastWrite = now;
@@ -226,13 +270,14 @@ function stopSharing() {
   sharing = false; $("btnShare").textContent = "Condividi";
   if (watchId !== null) navigator.geolocation.clearWatch(watchId); watchId = null;
   if (meMarker) { meMarker.remove(); meMarker = null; }
+  myPos = null; myAcc = null; refreshQuiz();
   if (db && code) fb.remove(fb.ref(db, `groups/${code}/users/${uid}`)).catch(() => {});
   $("status").textContent = "Non condividi la posizione";
 }
 $("btnShare").onclick = () => (sharing ? stopSharing() : startSharing());
 
 // ---------- Dialog gruppo ----------
-function openGroup() { $("inName").value = name; $("inCode").value = code; $("dlgGroup").showModal(); }
+function openGroup() { $("myId").textContent = uid; $("inName").value = name; $("inCode").value = code; $("dlgGroup").showModal(); }
 $("btnGroup").onclick = openGroup;
 $("formGroup").addEventListener("submit", (ev) => {
   if (ev.submitter && ev.submitter.value === "cancel") return;
@@ -311,6 +356,153 @@ $("formAdd").addEventListener("submit", (ev) => {
   const nm = $("addName").value.trim(); if (!nm) return;
   fb.push(fb.ref(db, `groups/${code}/places`), { name: nm, cat: $("addCat").value, note: $("addNote").value.trim(), lat: pending.lat, lng: pending.lng, by: name, ts: Date.now() }).catch((e) => alert("Salvataggio fallito: " + e.message));
   pending = null;
+});
+
+// ---------- Quiz di prossimità ----------
+$("btnQuiz").innerHTML = icon("trophy", 22);
+const mergeQuestions = () => {
+  const list = [];
+  for (const s of QUIZ_SEED) { const n = quizDb[s.id] || {}; list.push({ ...s, answers: n.answers || {}, ncorrect: n.ncorrect || 0 }); }
+  for (const [id, n] of Object.entries(quizDb)) {
+    if (n && n.text && !QUIZ_SEED.some((s) => s.id === id)) list.push({ id, ...n, answers: n.answers || {} });
+  }
+  return list;
+};
+const radiusOf = (q) => q.radius || ANSWER_M;
+function stateOf(q) {
+  if (q.by === uid) return "own";
+  if (q.answers[uid]) return "answered";
+  if (!myPos) return "nopos";
+  if (myAcc != null && myAcc > radiusOf(q)) return "noacc";
+  if (q._d > radiusOf(q)) return "far";
+  return "answerable";
+}
+function quizIcon(q, st) {
+  const a = q.answers[uid];
+  const col = st === "own" ? "#6a1b9a" : st === "answered" ? (a && a.correct ? "#2e7d32" : "#757575") : "#c2185b";
+  return L.divIcon({ className: "", html: `<div class="pin" style="background:${col}">${icon(st === "answered" ? "check" : "question", 18)}</div>`, iconSize: [32, 32], iconAnchor: [16, 16], popupAnchor: [0, -14] });
+}
+function quizPopupHtml(q, st) {
+  const area = q.area ? `<small>${esc(q.area)}</small><br>` : "";
+  const head = `<b>Quiz</b> ${area}`;
+  const nOk = Object.values(q.answers).filter((a) => a.correct).length, nAns = Object.keys(q.answers).length;
+  const optsStatic = (mark) => q.options.map((o, i) => `<div class="qopt">${i === q.correct && mark ? "✅" : "▫️"} <span>${esc(o)}</span></div>`).join("");
+  if (st === "own") return `${head}<p style="margin:6px 0">${esc(q.text)}</p>${optsStatic(true)}<p class="hint">L'hai scritta tu. Risposte: ${nAns}, corrette: ${nOk}.</p>`;
+  if (st === "answered") {
+    const a = q.answers[uid];
+    const res = a.pending ? "Invio in corso…" : a.correct ? `<span class="qok">Corretto! +${a.points} punti (${a.rank}° a rispondere)</span>` : `<span class="qno">Sbagliato.</span> Nessun punto.`;
+    return `${head}<p style="margin:6px 0">${esc(q.text)}</p>${optsStatic(true)}<p>${res}</p>`;
+  }
+  if (st === "nopos") return `${head}<p>Condividi la posizione (pulsante <b>Condividi</b>) per rispondere.</p>`;
+  const d = Math.round(q._d);
+  if (st === "noacc") return `${head}<p>GPS poco preciso (±${Math.round(myAcc)} m). Aspetta qualche secondo.</p>`;
+  if (st === "far") return `${head}<p>Sei a <b>${d} m</b>. Avvicinati a meno di ${radiusOf(q)} m per vedere la domanda.</p>${isAdmin ? `<p class="hint">Admin: ${esc(q.text)}</p>` : ""}`;
+  return `${head}<p style="margin:6px 0"><b>${esc(q.text)}</b></p>` +
+    q.options.map((o, i) => `<label class="qopt"><input type="radio" name="qopt" value="${i}"><span>${esc(o)}</span></label>`).join("") +
+    `<p class="hint">Un solo tentativo. Più sei veloce, più punti prendi.</p><button class="main" id="qSubmit" style="margin-top:6px">Rispondi</button><div id="qMsg" class="hint"></div>`;
+}
+function wireQuizPopup(root, id) {
+  const btn = root && root.querySelector("#qSubmit"); if (!btn) return;
+  btn.onclick = async (ev) => {
+    ev.stopPropagation();
+    const sel = root.querySelector('input[name="qopt"]:checked'), msg = root.querySelector("#qMsg");
+    if (!sel) { msg.textContent = "Scegli una risposta."; return; }
+    btn.disabled = true;
+    try { await submitAnswer(questions.find((x) => x.id === id), parseInt(sel.value, 10)); }
+    catch (e) { msg.textContent = "Errore: " + e.message; btn.disabled = false; }
+  };
+}
+async function submitAnswer(q, choice) {
+  const base = `groups/${code}/quiz/${q.id}`, aref = fb.ref(db, `${base}/answers/${uid}`);
+  const claim = await fb.runTransaction(aref, (cur) => (cur === null ? { choice, name, ts: Date.now(), pending: true } : undefined));
+  if (!claim.committed) return;
+  const correct = choice === q.correct; let rank = null, points = 0;
+  if (correct) {
+    const r = await fb.runTransaction(fb.ref(db, `${base}/ncorrect`), (n) => (n || 0) + 1);
+    rank = r.snapshot.val(); points = pointsForRank(rank);
+  }
+  await fb.update(aref, { correct, rank, points, pending: null });
+}
+function refreshQuiz() {
+  questions = mergeQuestions();
+  const ids = new Set();
+  for (const q of questions) {
+    q._d = myPos ? distM(myPos, [q.lat, q.lng]) : Infinity;
+    const st = stateOf(q);
+    const visible = q._d <= REVEAL_M || isAdmin || st === "own" || st === "answered";
+    if (!visible) continue;
+    ids.add(q.id);
+    let m = quizMarkers[q.id];
+    if (!m) {
+      m = quizMarkers[q.id] = L.marker([q.lat, q.lng], { icon: quizIcon(q, st), zIndexOffset: 800 }).addTo(quizLayer);
+      m.bindPopup(() => { const qq = questions.find((x) => x.id === q.id); return quizPopupHtml(qq, stateOf(qq)); }, { maxWidth: 280 });
+      m.on("popupopen", (e) => wireQuizPopup(e.popup.getElement(), q.id));
+      quizState[q.id] = st;
+    } else if (quizState[q.id] !== st || st === "far") {
+      const changed = quizState[q.id] !== st; quizState[q.id] = st;
+      const wasOpen = m.isPopupOpen();
+      if (changed) m.setIcon(quizIcon(q, st));
+      if (wasOpen) { if (!m.isPopupOpen()) m.openPopup(); m.getPopup().setContent(quizPopupHtml(q, st)); wireQuizPopup(m.getPopup().getElement(), q.id); }
+    }
+  }
+  for (const id of Object.keys(quizMarkers)) if (!ids.has(id)) { quizMarkers[id].remove(); delete quizMarkers[id]; delete quizState[id]; }
+  if ($("dlgBoard").open) renderBoard();
+}
+function computeBoard() {
+  const s = {}; const ensure = (id, nm) => (s[id] ||= { name: nm || id, pts: 0, ok: 0, asked: 0 });
+  for (const q of questions) {
+    const authored = q.by && !q.admin;
+    if (authored) { ensure(q.by, q.byName).asked++; if (q.byName) s[q.by].name = q.byName; }
+    for (const [id, a] of Object.entries(q.answers)) {
+      if (a.pending) continue;
+      const u = ensure(id, a.name); if (a.name) u.name = a.name;
+      if (a.correct) { u.pts += a.points; u.ok++; if (authored && q.by !== id) ensure(q.by, q.byName).pts += Math.round(a.points * AUTHOR_SHARE); }
+    }
+  }
+  return Object.entries(s).map(([id, v]) => ({ id, ...v })).sort((a, b) => b.pts - a.pts || b.ok - a.ok);
+}
+const myQuestionCount = () => questions.filter((q) => q.by === uid).length;
+function renderBoard() {
+  const rows = computeBoard();
+  $("boardList").innerHTML = rows.length ? rows.map((r, i) => `<li class="${r.id === uid ? "me" : ""}"><span>${i + 1}. ${esc(r.name)}</span><span>${r.pts} pt</span></li>`).join("") : "<li><span>Ancora nessun punto</span></li>";
+  $("boardInfo").textContent = isAdmin ? "Sei admin: domande illimitate, senza punti autore." : `Domande scritte da te: ${myQuestionCount()}/${MAX_USER_QUESTIONS}. Ogni risposta corretta alle tue domande ti dà gli stessi punti di chi risponde.`;
+}
+$("btnQuiz").onclick = () => {
+  if (!db || !code) { alert("Entra in un gruppo (con Firebase configurato) per giocare al quiz."); return; }
+  renderBoard(); $("dlgBoard").showModal();
+};
+$("btnBoardClose").onclick = () => $("dlgBoard").close();
+
+// Nuova domanda
+let qPending = null, qMarker = null;
+for (let i = 0; i < 4; i++) {
+  $("qOpts").insertAdjacentHTML("beforeend", `<div class="qopt" style="align-items:center"><input type="radio" name="qcorrect" value="${i}" ${i === 0 ? "checked" : ""} style="width:auto;margin:0"><input id="qo${i}" maxlength="60" required autocomplete="off" placeholder="Risposta ${i + 1}"></div>`);
+}
+function setQPicked(lat, lng) {
+  qPending = { lat, lng }; $("qPicked").textContent = `Posizione: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  if (qMarker) qMarker.remove();
+  qMarker = L.circleMarker([lat, lng], { radius: 9, color: "#fff", fillColor: "#c2185b", fillOpacity: 1, weight: 3 }).addTo(map);
+}
+$("btnNewQ").onclick = () => {
+  if (!isAdmin && myQuestionCount() >= MAX_USER_QUESTIONS) { alert(`Hai già scritto ${MAX_USER_QUESTIONS} domande.`); return; }
+  $("dlgBoard").close(); qPending = null; $("qText").value = ""; for (let i = 0; i < 4; i++) $("qo" + i).value = "";
+  $("qPicked").textContent = "Nessuna posizione scelta";
+  $("qLimit").textContent = isAdmin ? "Admin: nessun limite." : `Puoi scrivere ancora ${MAX_USER_QUESTIONS - myQuestionCount()} domande. Una volta salvata non si cancella.`;
+  $("dlgQ").showModal();
+};
+$("qHere").onclick = () => { if (!myPos) { $("qPicked").textContent = "Attiva prima Condividi per usare la tua posizione."; return; } setQPicked(myPos[0], myPos[1]); };
+$("qCenter").onclick = () => { const c = map.getCenter(); setQPicked(c.lat, c.lng); };
+$("dlgQ").addEventListener("close", () => { if (qMarker) { qMarker.remove(); qMarker = null; } });
+$("formQ").addEventListener("submit", (ev) => {
+  if (ev.submitter && ev.submitter.value === "cancel") return;
+  if (!qPending) { ev.preventDefault(); $("qPicked").textContent = "Scegli prima la posizione ('Qui dove sono' o 'Centro mappa')."; return; }
+  if (!isAdmin && myQuestionCount() >= MAX_USER_QUESTIONS) { ev.preventDefault(); alert("Limite di domande raggiunto."); return; }
+  const options = [0, 1, 2, 3].map((i) => $("qo" + i).value.trim());
+  if (options.some((o) => !o)) { ev.preventDefault(); return; }
+  const correct = parseInt(document.querySelector('input[name="qcorrect"]:checked').value, 10);
+  fb.push(fb.ref(db, `groups/${code}/quiz`), { text: $("qText").value.trim(), options, correct, lat: qPending.lat, lng: qPending.lng, by: uid, byName: name, admin: isAdmin, ts: Date.now() })
+    .catch((e) => alert("Salvataggio fallito: " + e.message));
+  qPending = null;
 });
 
 if (name && code) { connectGroup(); $("status").textContent = `${name} · gruppo "${code}"`; }

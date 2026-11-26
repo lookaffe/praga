@@ -22,6 +22,14 @@ Alternativa: Firebase Hosting (`firebase deploy`).
 - Aggiungi alla Home: Chrome (Android) menu ⋮ → *Installa app*; Safari (iPhone) Condividi → *Aggiungi alla schermata Home*.
 - **Tenere premuto sulla mappa** = aggiungi un punto per tutto il gruppo.
 
+## 5. Quiz di prossimità
+- Il pulsante 🏆 in alto apre classifica e "＋ Nuova domanda". Serve **Condividi** attivo per giocare.
+- Un punto quiz compare sulla mappa entro **500 m**; la domanda si vede e si risponde entro **100 m** (250 m per le 5 domande iniziali sui monumenti, perché le loro coordinate sono approssimate). Un solo tentativo, scelta multipla.
+- Punti: 1° 10, 2° 7, 3° 5, dagli altri 3 (modificabili in `quiz.js`).
+- Ogni utente può scrivere 2 domande; chi le scrive prende gli stessi punti di ogni risposta corretta. Gli admin ne scrivono quante vogliono e non prendono punti autore.
+- **Diventare admin**: apri "Gruppo", copia il tuo ID, mettilo in `ADMIN_UIDS` in `quiz.js` (es. `["a1b2c3d4e5f6"]`) e ricarica.
+- Limiti: niente login e le risposte giuste stanno nel database, quindi chi sa usare gli strumenti del browser può barare o superare il limite delle 2 domande. Va bene tra amici, non è a prova di furbo.
+
 ## Limiti da conoscere
 - **Privacy/sicurezza**: le regole permettono lettura/scrittura a chiunque conosca il codice gruppo. Scegli un codice non indovinabile (non "praga"). Non c'è login. Smetti di condividere con **Stop**; a fine viaggio elimina il nodo `groups` dalla console.
 - **Coordinate approssimate**: i luoghi iniziali sono posizionati a livello di quartiere. Usa "Apri in Google Maps" nel popup per il punto esatto. Controlla orari e prenotazioni a gennaio (alcune attività richiedono prenotazione).

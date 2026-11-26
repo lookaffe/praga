@@ -10,6 +10,9 @@ const P = {
   bridge:'<path d="M2 9h20"/><path d="M3 20c2-7 7-7 9 0 2-7 7-7 9 0"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   tower: '<path d="M12 2v4"/><path d="M10 6h4l1 6-1 9h-4l-1-9z"/><path d="M8 21h8"/>',
+  question: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7"/><path d="M12 17.5h.01"/>',
+  check: '<path d="M5 12l5 5L20 7"/>',
+  trophy:'<path d="M8 21h8M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/>',
   book:  '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h11"/>',
 };
 export function icon(name, size = 18) {

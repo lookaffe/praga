@@ -1,5 +1,5 @@
-const CACHE = "praga-v8";
-const SHELL = ["./", "./index.html", "./places.js", "./icons.js", "./config.js", "./manifest.webmanifest", "./favicon.png", "./icon-192.png", "./icon-512.png", "./vendor/leaflet.js", "./vendor/leaflet.css"];
+const CACHE = "praga-v9";
+const SHELL = ["./", "./index.html", "./places.js", "./icons.js", "./quiz.js", "./config.js", "./manifest.webmanifest", "./favicon.png", "./icon-192.png", "./icon-512.png", "./vendor/leaflet.js", "./vendor/leaflet.css"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
