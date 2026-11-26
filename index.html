@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#1b1b1f">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>BirriPraga</title>
 <link rel="stylesheet" href="vendor/leaflet.css">
 <style>
@@ -21,6 +22,7 @@
   footer { background: var(--panel); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; }
   footer .status { flex: 1; font-size: 12px; color: var(--muted); }
   button.main { background: var(--accent); color: #111; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 700; font-size: 14px; }
+  #btnAdd { margin-left: auto; order: 99; padding: 7px 12px; }
   button.sec { background: #3a3a42; color: var(--text); border: 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
   dialog { background: var(--panel); color: var(--text); border: 1px solid #444; border-radius: 12px; max-width: 92vw; width: 360px; }
   dialog::backdrop { background: rgba(0,0,0,.6); }
@@ -37,12 +39,11 @@
 </head>
 <body>
 <div id="app">
-  <header id="filters"><h1>BirriPraga</h1></header>
+  <header id="filters"><h1>BirriPraga</h1><button class="main" id="btnAdd">＋ Punto</button></header>
   <div id="warn" class="warn" hidden></div>
   <div id="map"></div>
   <footer>
     <div class="status" id="status">Non condividi la posizione</div>
-    <button class="sec" id="btnAdd">＋ Punto</button>
     <button class="sec" id="btnGroup">Gruppo</button>
     <button class="main" id="btnShare">Condividi</button>
   </footer>
@@ -74,7 +75,7 @@
 
 <script src="vendor/leaflet.js"></script>
 <script type="module">
-import { CATEGORIES, PLACES } from "./places.js";
+import { CATEGORIES, PLACES, HOTEL } from "./places.js";
 import { firebaseConfig } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
@@ -118,6 +119,10 @@ function popupHtml(p, extra = "") {
     `<a href="${gmaps(p)}" target="_blank" rel="noopener">Apri in Google Maps</a>${extra}`;
 }
 for (const p of PLACES) L.marker([p.lat, p.lng], { icon: pinIcon(p.cat) }).bindPopup(popupHtml(p)).addTo(layers[p.cat]);
+L.marker([HOTEL.lat, HOTEL.lng], {
+  icon: L.divIcon({ className: "", html: `<div class="pin" style="background:#1565c0;width:34px;height:34px;font-size:18px">🏨</div>`, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -16] }),
+  zIndexOffset: 500,
+}).bindPopup(popupHtml(HOTEL)).addTo(map);
 
 // ---------- Stato locale ----------
 const store = {
