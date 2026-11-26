@@ -1,5 +1,5 @@
-const CACHE = "praga-v1";
-const SHELL = ["./", "./index.html", "./places.js", "./config.js", "./manifest.webmanifest", "./icon.svg", "./vendor/leaflet.js", "./vendor/leaflet.css"];
+const CACHE = "praga-v4";
+const SHELL = ["./", "./index.html", "./places.js", "./config.js", "./manifest.webmanifest", "./favicon.png", "./icon-192.png", "./icon-512.png", "./vendor/leaflet.js", "./vendor/leaflet.css"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -14,7 +14,7 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  if (url.hostname.endsWith("firebaseio.com") || url.hostname.includes("googleapis.com")) return;
+  if (url.hostname.endsWith("firebaseio.com") || url.hostname.includes("googleapis.com") || url.hostname.includes("nominatim")) return;
   e.respondWith(
     fetch(req)
       .then((res) => {

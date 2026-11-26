@@ -39,3 +39,8 @@ export const PLACES = [
   { id: "funarena", cat: "attivita", name: "Fun Arena", area: "Vicino metro Opatov (linea C)",
     lat: 50.0285, lng: 14.5065, note: "Lancio asce, escape game, HADO, airsoft, arcade. In periferia sud (~25 min dal centro)." },
 ];
+
+// Albergo: punto fisso, sempre visibile (non dipende dai filtri).
+// POSIZIONE PROVVISORIA (centro città): sostituire lat/lng/area con l'indirizzo reale.
+export const HOTEL = { id: "hotel", name: "Albergo", area: "Posizione provvisoria",
+  lat: 50.0813, lng: 14.4280, note: "Posizione di prova: da aggiornare con l'indirizzo vero." };
