@@ -1,0 +1,14 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "groups": {
+      "$code": {
+        ".read": true,
+        ".write": true,
+        "users": { "$uid": { ".validate": "newData.hasChildren(['name','lat','lng','ts'])" } },
+        "places": { "$pid": { ".validate": "newData.hasChildren(['name','cat','lat','lng'])" } }
+      }
+    }
+  }
+}

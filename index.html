@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1b1f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<title>Praga 2027</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<style>
+  :root { --bg:#1b1b1f; --panel:#26262c; --text:#f2f2f2; --muted:#a0a0aa; --accent:#f5b301; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+  #app { display: flex; flex-direction: column; height: 100%; }
+  header { padding: 8px 10px calc(8px); background: var(--panel); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0 8px 0 0; }
+  .chip { border: 1px solid #444; background: transparent; color: var(--text); padding: 6px 10px; border-radius: 16px; font-size: 14px; }
+  .chip.on { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
+  #map { flex: 1; min-height: 0; }
+  footer { background: var(--panel); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; }
+  footer .status { flex: 1; font-size: 12px; color: var(--muted); }
+  button.main { background: var(--accent); color: #111; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 700; font-size: 14px; }
+  button.sec { background: #3a3a42; color: var(--text); border: 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+  dialog { background: var(--panel); color: var(--text); border: 1px solid #444; border-radius: 12px; max-width: 92vw; width: 360px; }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog label { display: block; margin: 10px 0 4px; font-size: 13px; color: var(--muted); }
+  dialog input, dialog select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #555; background: #1b1b1f; color: var(--text); font-size: 16px; }
+  .row { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
+  .pin { display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; border:2px solid #fff; font-size:16px; box-shadow:0 1px 4px rgba(0,0,0,.5); }
+  .me { width:26px; height:26px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 2px rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; }
+  .leaflet-popup-content { color:#222; }
+  .leaflet-popup-content a { color:#0a58ca; font-weight:600; }
+  .warn { background:#5a3b00; color:#ffd78a; padding:6px 10px; font-size:12px; }
+  .stale { opacity:.45; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="filters"><h1>🍺 Praga 11–14 gen</h1></header>
+  <div id="warn" class="warn" hidden></div>
+  <div id="map"></div>
+  <footer>
+    <div class="status" id="status">Non condividi la posizione</div>
+    <button class="sec" id="btnGroup">Gruppo</button>
+    <button class="main" id="btnShare">Condividi</button>
+  </footer>
+</div>
+
+<dialog id="dlgGroup">
+  <form method="dialog" id="formGroup">
+    <h3 style="margin:0 0 4px">Entra nel gruppo</h3>
+    <p style="margin:0;font-size:13px;color:var(--muted)">Tutti scrivete lo stesso codice. Chi lo conosce vede le vostre posizioni, quindi scegline uno non banale.</p>
+    <label>Il tuo nome</label><input id="inName" maxlength="20" required autocomplete="off">
+    <label>Codice gruppo</label><input id="inCode" maxlength="30" required autocomplete="off" autocapitalize="none">
+    <div class="row"><button class="sec" value="cancel" formnovalidate>Annulla</button><button class="main" value="ok">Entra</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgAdd">
+  <form method="dialog" id="formAdd">
+    <h3 style="margin:0 0 4px">Aggiungi punto</h3>
+    <label>Nome</label><input id="addName" maxlength="50" required autocomplete="off">
+    <label>Categoria</label><select id="addCat"></select>
+    <label>Nota (opzionale)</label><input id="addNote" maxlength="120" autocomplete="off">
+    <div class="row"><button class="sec" value="cancel" formnovalidate>Annulla</button><button class="main" value="ok">Salva</button></div>
+  </form>
+</dialog>
+
+<script src="vendor/leaflet.js"></script>
+<script type="module">
+import { CATEGORIES, PLACES } from "./places.js";
+import { firebaseConfig } from "./config.js";
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const gmaps = (p) => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(`${p.name} ${p.area || ""} Praha`);
+
+// ---------- Mappa ----------
+const map = L.map("map", { zoomControl: false }).setView([50.0835, 14.4200], 13);
+L.control.zoom({ position: "topright" }).addTo(map);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19, attribution: "© OpenStreetMap",
+}).addTo(map);
+
+// ---------- Filtri ----------
+const active = new Set(Object.keys(CATEGORIES));
+const layers = {};
+for (const k of Object.keys(CATEGORIES)) layers[k] = L.layerGroup().addTo(map);
+
+const filters = $("filters");
+for (const [k, c] of Object.entries(CATEGORIES)) {
+  const b = document.createElement("button");
+  b.className = "chip on"; b.textContent = `${c.emoji} ${c.label}`;
+  b.onclick = () => {
+    if (active.has(k)) { active.delete(k); map.removeLayer(layers[k]); b.classList.remove("on"); }
+    else { active.add(k); map.addLayer(layers[k]); b.classList.add("on"); }
+  };
+  filters.appendChild(b);
+}
+for (const [k, c] of Object.entries(CATEGORIES)) {
+  const o = document.createElement("option"); o.value = k; o.textContent = `${c.emoji} ${c.label}`;
+  $("addCat").appendChild(o);
+}
+
+function pinIcon(cat) {
+  const c = CATEGORIES[cat] || CATEGORIES.altro;
+  return L.divIcon({ className: "", html: `<div class="pin" style="background:${c.color}">${c.emoji}</div>`, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14] });
+}
+function popupHtml(p, extra = "") {
+  return `<b>${esc(p.name)}</b><br><small>${esc(p.area || "")}</small>` +
+    (p.note ? `<p style="margin:6px 0">${esc(p.note)}</p>` : "") +
+    `<a href="${gmaps(p)}" target="_blank" rel="noopener">Apri in Google Maps</a>${extra}`;
+}
+for (const p of PLACES) L.marker([p.lat, p.lng], { icon: pinIcon(p.cat) }).bindPopup(popupHtml(p)).addTo(layers[p.cat]);
+
+// ---------- Stato locale ----------
+const store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+let uid = store.get("uid");
+if (!uid) { uid = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)).slice(0, 12); store.set("uid", uid); }
+let name = store.get("name") || "";
+let code = store.get("code") || "";
+let sharing = false, watchId = null, lastWrite = 0, myPos = null;
+
+// ---------- Firebase (opzionale) ----------
+const fbReady = Object.values(firebaseConfig).every((v) => v && !String(v).startsWith("INCOLLA"));
+let db = null, fb = null;
+if (!fbReady) {
+  $("warn").hidden = false;
+  $("warn").textContent = "Firebase non configurato: mappa attiva, posizioni live e punti condivisi disattivati (vedi README).";
+} else {
+  try {
+    const base = "https://www.gstatic.com/firebasejs/10.12.2/";
+    const [{ initializeApp }, dbm] = await Promise.all([import(base + "firebase-app.js"), import(base + "firebase-database.js")]);
+    fb = dbm; db = dbm.getDatabase(initializeApp(firebaseConfig));
+  } catch (e) {
+    $("warn").hidden = false; $("warn").textContent = "Impossibile caricare Firebase (offline?). Mappa locale attiva.";
+  }
+}
+
+const COLORS = ["#e53935","#1e88e5","#43a047","#8e24aa","#fb8c00","#00acc1","#6d4c41","#d81b60"];
+const colorFor = (id) => COLORS[[...id].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length];
+const userMarkers = {}, sharedMarkers = {};
+let unsubs = [];
+
+function connectGroup() {
+  unsubs.forEach((u) => u()); unsubs = [];
+  Object.values(userMarkers).forEach((m) => m.remove()); for (const k in userMarkers) delete userMarkers[k];
+  Object.values(sharedMarkers).forEach((m) => m.remove()); for (const k in sharedMarkers) delete sharedMarkers[k];
+  if (!db || !code) return;
+  const root = `groups/${code}`;
+  unsubs.push(fb.onValue(fb.ref(db, `${root}/users`), (snap) => {
+    const data = snap.val() || {}; const now = Date.now();
+    for (const id of Object.keys(userMarkers)) if (!data[id]) { userMarkers[id].remove(); delete userMarkers[id]; }
+    for (const [id, u] of Object.entries(data)) {
+      if (id === uid) continue;
+      const stale = now - u.ts > 10 * 60 * 1000;
+      const mins = Math.max(0, Math.round((now - u.ts) / 60000));
+      const icon = L.divIcon({ className: stale ? "stale" : "", html: `<div class="me" style="background:${colorFor(id)}">${esc((u.name || "?")[0].toUpperCase())}</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
+      const tip = `${esc(u.name)} · ${mins < 1 ? "ora" : mins + " min fa"}`;
+      if (userMarkers[id]) { userMarkers[id].setLatLng([u.lat, u.lng]).setIcon(icon).setTooltipContent(tip); }
+      else userMarkers[id] = L.marker([u.lat, u.lng], { icon, zIndexOffset: 1000 }).bindTooltip(tip, { permanent: true, direction: "top", offset: [0, -12] }).addTo(map);
+    }
+  }));
+  unsubs.push(fb.onValue(fb.ref(db, `${root}/places`), (snap) => {
+    const data = snap.val() || {};
+    for (const id of Object.keys(sharedMarkers)) if (!data[id]) { sharedMarkers[id].remove(); delete sharedMarkers[id]; }
+    for (const [id, p] of Object.entries(data)) {
+      if (sharedMarkers[id]) continue;
+      const del = ` <a href="#" data-del="${id}" style="color:#b00020">elimina</a>`;
+      const m = L.marker([p.lat, p.lng], { icon: pinIcon(p.cat) }).bindPopup(popupHtml({ ...p, area: p.by ? "aggiunto da " + p.by : "" }, del));
+      m.on("popupopen", (e) => { const a = e.popup.getElement().querySelector("[data-del]"); if (a) a.onclick = (ev) => { ev.preventDefault(); if (confirm("Eliminare il punto?")) fb.remove(fb.ref(db, `${root}/places/${id}`)); }; });
+      (layers[p.cat] || layers.altro).addLayer(m); sharedMarkers[id] = m;
+    }
+  }));
+}
+
+// ---------- Posizione ----------
+let meMarker = null;
+function startSharing() {
+  if (!code || !name) { openGroup(); return; }
+  if (!navigator.geolocation) { alert("Geolocalizzazione non supportata."); return; }
+  sharing = true; $("btnShare").textContent = "Stop"; $("status").textContent = `${name} · gruppo "${code}" · posizione attiva`;
+  watchId = navigator.geolocation.watchPosition((pos) => {
+    myPos = [pos.coords.latitude, pos.coords.longitude];
+    const icon = L.divIcon({ className: "", html: `<div class="me" style="background:#2979ff">Io</div>`, iconSize: [26, 26], iconAnchor: [13, 13] });
+    if (meMarker) meMarker.setLatLng(myPos); else { meMarker = L.marker(myPos, { icon }).addTo(map); map.setView(myPos, Math.max(map.getZoom(), 15)); }
+    const now = Date.now();
+    if (db && now - lastWrite > 15000) {
+      lastWrite = now;
+      fb.set(fb.ref(db, `groups/${code}/users/${uid}`), { name, lat: myPos[0], lng: myPos[1], ts: now }).catch(() => {});
+    }
+  }, (err) => { $("status").textContent = "Errore posizione: " + err.message; stopSharing(); }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 });
+}
+function stopSharing() {
+  sharing = false; $("btnShare").textContent = "Condividi";
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId); watchId = null;
+  if (meMarker) { meMarker.remove(); meMarker = null; }
+  if (db && code) fb.remove(fb.ref(db, `groups/${code}/users/${uid}`)).catch(() => {});
+  $("status").textContent = "Non condividi la posizione";
+}
+$("btnShare").onclick = () => (sharing ? stopSharing() : startSharing());
+
+// ---------- Dialog gruppo ----------
+function openGroup() { $("inName").value = name; $("inCode").value = code; $("dlgGroup").showModal(); }
+$("btnGroup").onclick = openGroup;
+$("formGroup").addEventListener("submit", (ev) => {
+  if (ev.submitter && ev.submitter.value === "cancel") return;
+  const n = $("inName").value.trim(), c = $("inCode").value.trim().toLowerCase().replace(/[.#$\[\]\/]/g, "-");
+  if (!n || !c) return;
+  const wasSharing = sharing; if (wasSharing) stopSharing();
+  name = n; code = c; store.set("name", n); store.set("code", c); connectGroup();
+  $("status").textContent = `${name} · gruppo "${code}"`;
+  if (!fbReady) $("status").textContent += " (senza Firebase)";
+});
+$("dlgGroup").addEventListener("close", () => {});
+
+// ---------- Aggiungi punto (pressione lunga) ----------
+let pending = null;
+map.on("contextmenu", (e) => {
+  if (!db || !code) { alert("Entra prima in un gruppo (con Firebase configurato) per aggiungere punti condivisi."); return; }
+  pending = e.latlng; $("addName").value = ""; $("addNote").value = ""; $("dlgAdd").showModal();
+});
+$("formAdd").addEventListener("submit", (ev) => {
+  if ((ev.submitter && ev.submitter.value === "cancel") || !pending) return;
+  const nm = $("addName").value.trim(); if (!nm) return;
+  fb.push(fb.ref(db, `groups/${code}/places`), { name: nm, cat: $("addCat").value, note: $("addNote").value.trim(), lat: pending.lat, lng: pending.lng, by: name, ts: Date.now() }).catch((e) => alert("Salvataggio fallito: " + e.message));
+  pending = null;
+});
+
+if (name && code) { connectGroup(); $("status").textContent = `${name} · gruppo "${code}"`; }
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
