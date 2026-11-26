@@ -9,7 +9,7 @@ export const AUTHOR_SHARE = 1;       // l'autore (non admin) prende AUTHOR_SHARE
 
 // ID degli admin: possono aggiungere domande senza limite e vedono sempre tutti i punti quiz.
 // Il tuo ID si legge nella finestra "Gruppo" dell'app. Esempio: ["a1b2c3d4e5f6"]
-export const ADMIN_UIDS = ["admin"];
+export const ADMIN_UIDS = ["d939fb6e-153"];
 
 export const pointsForRank = (rank) => POINTS[rank - 1] ?? POINTS_OTHERS;
 
