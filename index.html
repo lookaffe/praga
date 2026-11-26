@@ -113,9 +113,9 @@ for (const [k, c] of Object.entries(CATEGORIES)) {
   $("addCat").appendChild(o);
 }
 
-function pinIcon(cat) {
+function pinIcon(cat, emoji) {
   const c = CATEGORIES[cat] || CATEGORIES.altro;
-  return L.divIcon({ className: "", html: `<div class="pin" style="background:${c.color}">${c.emoji}</div>`, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14] });
+  return L.divIcon({ className: "", html: `<div class="pin" style="background:${c.color}">${emoji || c.emoji}</div>`, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14] });
 }
 function popupHtml(p, extra = "") {
   return `<b>${esc(p.name)}</b><br><small>${esc(p.area || "")}</small>` +
@@ -123,7 +123,7 @@ function popupHtml(p, extra = "") {
     `<a href="${gmaps(p)}" target="_blank" rel="noopener">Apri in Google Maps</a>` +
     `<div style="margin-top:6px"><a href="${dirUrl(p, "transit")}" target="_blank" rel="noopener">🚇 Con i mezzi</a> · <a href="${dirUrl(p, "walking")}" target="_blank" rel="noopener">🚶 A piedi</a></div>${extra}`;
 }
-for (const p of PLACES) L.marker([p.lat, p.lng], { icon: pinIcon(p.cat) }).bindPopup(popupHtml(p)).addTo(layers[p.cat]);
+for (const p of PLACES) L.marker([p.lat, p.lng], { icon: pinIcon(p.cat, p.emoji) }).bindPopup(popupHtml(p)).addTo(layers[p.cat]);
 L.marker([HOTEL.lat, HOTEL.lng], {
   icon: L.divIcon({ className: "", html: `<div class="pin" style="background:#1565c0;width:34px;height:34px;font-size:18px">🏨</div>`, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -16] }),
   zIndexOffset: 500,
