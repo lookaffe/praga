@@ -3,43 +3,54 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1b1b1f">
+<meta name="theme-color" content="#2c2018">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>BirriPraga</title>
 <link rel="stylesheet" href="vendor/leaflet.css">
 <style>
-  :root { --bg:#1b1b1f; --panel:#26262c; --text:#f2f2f2; --muted:#a0a0aa; --accent:#f5b301; }
+  :root { --brown:#2c2018; --brown2:#4a392b; --cream:#f6efe3; --cream2:#e6dac6; --muted:#8a7766; --accent:#e0a21b; --accent-dark:#9a5b00; }
   * { box-sizing: border-box; }
-  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+  html, body { height: 100%; margin: 0; background: var(--cream); color: var(--brown); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
   #app { display: flex; flex-direction: column; height: 100%; }
-  header { padding: 8px 10px calc(8px); background: var(--panel); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-  header h1 { font-size: 16px; margin: 0; flex: 0 0 100%; }
-  .chip { border: 1px solid #444; background: transparent; color: var(--text); padding: 6px 14px; border-radius: 16px; font-size: 18px; line-height: 1; }
-  .chip.on { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 600; }
-  #map { flex: 1; min-height: 0; }
-  footer { background: var(--panel); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; }
-  footer .status { flex: 1; font-size: 12px; color: var(--muted); }
-  button.main { background: var(--accent); color: #111; border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 700; font-size: 14px; }
-  #btnAdd { margin-left: auto; order: 99; padding: 7px 12px; }
-  button.sec { background: #3a3a42; color: var(--text); border: 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
-  dialog { background: var(--panel); color: var(--text); border: 1px solid #444; border-radius: 12px; max-width: 92vw; width: 360px; }
-  dialog::backdrop { background: rgba(0,0,0,.6); }
+  header { padding: 10px 12px; background: var(--brown); color: var(--cream); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; box-shadow: 0 2px 8px rgba(0,0,0,.35); z-index: 1000; }
+  header h1 { font-family: Georgia, "Times New Roman", serif; font-size: 22px; letter-spacing: .5px; margin: 0; flex: 0 0 100%; display: flex; align-items: center; gap: 10px; }
+  header h1 img { width: 30px; height: 30px; border-radius: 8px; background: #fff; padding: 2px; }
+  .chip { border: 1.5px solid var(--brown2); background: transparent; color: var(--cream); padding: 6px 10px; border-radius: 18px; font-size: 18px; line-height: 1; transition: background .15s; }
+  .chip.on { background: var(--accent); color: var(--brown); border-color: var(--accent); }
+  #map { flex: 1; min-height: 0; background: var(--cream2); }
+  .leaflet-tile-pane { filter: sepia(.3) saturate(.85) contrast(.97); }
+  footer { background: var(--brown); color: var(--cream); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; box-shadow: 0 -2px 8px rgba(0,0,0,.25); z-index: 1000; }
+  footer .status { flex: 1; font-size: 12px; color: #cdbba4; }
+  button { font-family: inherit; }
+  button.main { background: var(--accent); color: var(--brown); border: 0; padding: 10px 16px; border-radius: 12px; font-weight: 700; font-size: 14px; }
+  #btnAdd { margin-left: auto; order: 99; padding: 8px 12px; white-space: nowrap; }
+  button.sec { background: var(--brown2); color: var(--cream); border: 0; padding: 10px 14px; border-radius: 12px; font-size: 14px; }
+  dialog { background: var(--cream); color: var(--brown); border: 0; border-radius: 16px; max-width: 92vw; width: 360px; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
+  dialog::backdrop { background: rgba(44,32,24,.6); }
+  dialog h3 { font-family: Georgia, serif; font-size: 20px; }
   dialog label { display: block; margin: 10px 0 4px; font-size: 13px; color: var(--muted); }
-  dialog input, dialog select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #555; background: #1b1b1f; color: var(--text); font-size: 16px; }
+  dialog input, dialog select { width: 100%; padding: 10px; border-radius: 10px; border: 1.5px solid var(--cream2); background: #fff; color: var(--brown); font-size: 16px; }
+  dialog input:focus, dialog select:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+  dialog button.sec { background: var(--cream2); color: var(--brown); }
   .row { display: flex; gap: 8px; margin-top: 14px; justify-content: flex-end; }
-  .pin { display:flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; border:2px solid #fff; font-size:16px; box-shadow:0 1px 4px rgba(0,0,0,.5); }
-  .me { width:26px; height:26px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 2px rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; }
-  .leaflet-popup-content { color:#222; }
-  .leaflet-popup-content a { color:#0a58ca; font-weight:600; }
-  .warn { background:#5a3b00; color:#ffd78a; padding:6px 10px; font-size:12px; }
+  .pin { color: var(--cream); display:flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:50%; border:2.5px solid var(--cream); font-size:16px; box-shadow:0 2px 6px rgba(44,32,24,.55); }
+  .chip svg { display:block; }
+  .me { width:26px; height:26px; border-radius:50%; border:3px solid var(--cream); box-shadow:0 0 0 2px rgba(44,32,24,.5); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color:#fff; }
+  .leaflet-popup-content-wrapper { background: var(--cream); color: var(--brown); border-radius: 14px; box-shadow: 0 4px 16px rgba(44,32,24,.4); }
+  .leaflet-popup-tip { background: var(--cream); }
+  .leaflet-popup-content { color: var(--brown); }
+  .leaflet-popup-content a { color: var(--accent-dark); font-weight: 600; }
+  .leaflet-tooltip { background: var(--brown); color: var(--cream); border: 0; box-shadow: none; }
+  .leaflet-tooltip-top:before { border-top-color: var(--brown); }
+  .warn { background:#f3d99a; color:#5a3b00; padding:6px 12px; font-size:12px; }
   .stale { opacity:.45; }
 </style>
 </head>
 <body>
 <div id="app">
-  <header id="filters"><h1>BirriPraga</h1><button class="main" id="btnAdd">＋ Punto</button></header>
+  <header id="filters"><h1><img src="icon-192.png" alt="">BirriPraga</h1><button class="main" id="btnAdd">＋ Punto</button></header>
   <div id="warn" class="warn" hidden></div>
   <div id="map"></div>
   <footer>
@@ -76,6 +87,7 @@
 <script src="vendor/leaflet.js"></script>
 <script type="module">
 import { CATEGORIES, PLACES, HOTEL } from "./places.js";
+import { icon } from "./icons.js";
 import { firebaseConfig } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
@@ -101,7 +113,7 @@ for (const k of Object.keys(CATEGORIES)) layers[k] = L.layerGroup().addTo(map);
 const filters = $("filters");
 for (const [k, c] of Object.entries(CATEGORIES)) {
   const b = document.createElement("button");
-  b.className = "chip on"; b.textContent = c.emoji; b.title = b.ariaLabel = c.label;
+  b.className = "chip on"; b.innerHTML = icon(c.icon, 22); b.title = b.ariaLabel = c.label;
   b.onclick = () => {
     if (active.has(k)) { active.delete(k); map.removeLayer(layers[k]); b.classList.remove("on"); }
     else { active.add(k); map.addLayer(layers[k]); b.classList.add("on"); }
@@ -109,13 +121,13 @@ for (const [k, c] of Object.entries(CATEGORIES)) {
   filters.appendChild(b);
 }
 for (const [k, c] of Object.entries(CATEGORIES)) {
-  const o = document.createElement("option"); o.value = k; o.textContent = `${c.emoji} ${c.label}`;
+  const o = document.createElement("option"); o.value = k; o.textContent = c.label;
   $("addCat").appendChild(o);
 }
 
-function pinIcon(cat, emoji) {
+function pinIcon(cat, iconName) {
   const c = CATEGORIES[cat] || CATEGORIES.altro;
-  return L.divIcon({ className: "", html: `<div class="pin" style="background:${c.color}">${emoji || c.emoji}</div>`, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14] });
+  return L.divIcon({ className: "", html: `<div class="pin" style="background:${c.color}">${icon(iconName || c.icon, 18)}</div>`, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -14] });
 }
 function popupHtml(p, extra = "") {
   return `<b>${esc(p.name)}</b><br><small>${esc(p.area || "")}</small>` +
@@ -123,9 +135,9 @@ function popupHtml(p, extra = "") {
     `<a href="${gmaps(p)}" target="_blank" rel="noopener">Apri in Google Maps</a>` +
     `<div style="margin-top:6px"><a href="${dirUrl(p, "transit")}" target="_blank" rel="noopener">🚇 Con i mezzi</a> · <a href="${dirUrl(p, "walking")}" target="_blank" rel="noopener">🚶 A piedi</a></div>${extra}`;
 }
-for (const p of PLACES) L.marker([p.lat, p.lng], { icon: pinIcon(p.cat, p.emoji) }).bindPopup(popupHtml(p)).addTo(layers[p.cat]);
+for (const p of PLACES) L.marker([p.lat, p.lng], { icon: pinIcon(p.cat, p.icon) }).bindPopup(popupHtml(p)).addTo(layers[p.cat]);
 L.marker([HOTEL.lat, HOTEL.lng], {
-  icon: L.divIcon({ className: "", html: `<div class="pin" style="background:#1565c0;width:34px;height:34px;font-size:18px">🏨</div>`, iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -16] }),
+  icon: L.divIcon({ className: "", html: `<div class="pin" style="background:#1565c0;width:36px;height:36px">${icon("bed", 20)}</div>`, iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -16] }),
   zIndexOffset: 500,
 }).bindPopup(popupHtml(HOTEL)).addTo(map);
 

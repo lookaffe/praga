@@ -2,11 +2,11 @@
 // la scheda apre Google Maps con nome+zona per la posizione esatta.
 // Fonti: Foursquare, VisitCzechia, Lonely Planet, HelloPrague, prague.eu, expats.cz.
 export const CATEGORIES = {
-  birra:     { label: "Birra",     emoji: "🍺", color: "#d98a00" },
-  cibo:      { label: "Cibo",      emoji: "🍖", color: "#c0392b" },
-  attivita:  { label: "Attività",  emoji: "🎯", color: "#2e7d32" },
-  cultura:   { label: "Cultura",   emoji: "🏛️", color: "#00838f" },
-  altro:     { label: "Altro",     emoji: "📍", color: "#5e35b1" },
+  birra:     { label: "Birra",     icon: "beer", color: "#d98a00" },
+  cibo:      { label: "Cibo",      icon: "food", color: "#c0392b" },
+  attivita:  { label: "Attività",  icon: "axe", color: "#2e7d32" },
+  cultura:   { label: "Cultura",   icon: "culture", color: "#00838f" },
+  altro:     { label: "Altro",     icon: "pin", color: "#5e35b1" },
 };
 
 export const PLACES = [
@@ -41,29 +41,29 @@ export const PLACES = [
     lat: 50.0285, lng: 14.5065, note: "Lancio asce, escape game, HADO, airsoft, arcade. In periferia sud (~25 min dal centro)." },
 
   // --- CULTURA (coordinate approssimate; orari e biglietti da verificare per gennaio) ---
-  { id: "castello", cat: "cultura", emoji: "🏰", name: "Castello di Praga", area: "Hradčany",
+  { id: "castello", cat: "cultura", icon: "castle", name: "Castello di Praga", area: "Hradčany",
     lat: 50.0909, lng: 14.4005, note: "Complesso con Cattedrale di San Vito e Vicolo d'Oro." },
-  { id: "pontecarlo", cat: "cultura", emoji: "🌉", name: "Ponte Carlo", area: "Città Vecchia / Malá Strana",
+  { id: "pontecarlo", cat: "cultura", icon: "bridge", name: "Ponte Carlo", area: "Città Vecchia / Malá Strana",
     lat: 50.0865, lng: 14.4114, note: "Ponte pedonale medievale con le statue. Meno affollato la sera." },
-  { id: "orologio", cat: "cultura", emoji: "🕰️", name: "Orologio Astronomico", area: "Piazza della Città Vecchia",
+  { id: "orologio", cat: "cultura", icon: "clock", name: "Orologio Astronomico", area: "Piazza della Città Vecchia",
     lat: 50.0870, lng: 14.4208, note: "Orologio medievale con il corteo degli apostoli (orari da verificare)." },
-  { id: "josefov", cat: "cultura", emoji: "🕍", name: "Quartiere ebraico (Josefov)", area: "Josefov",
+  { id: "josefov", cat: "cultura", name: "Quartiere ebraico (Josefov)", area: "Josefov",
     lat: 50.0900, lng: 14.4180, note: "Sinagoghe storiche e antico cimitero. Biglietto cumulativo, verificare orari." },
-  { id: "klementinum", cat: "cultura", emoji: "📚", name: "Klementinum", area: "Città Vecchia",
+  { id: "klementinum", cat: "cultura", icon: "book", name: "Klementinum", area: "Città Vecchia",
     lat: 50.0865, lng: 14.4156, note: "Biblioteca barocca e osservatorio, solo con visita guidata." },
-  { id: "petrin", cat: "cultura", emoji: "🗼", name: "Collina di Petřín e torre", area: "Malá Strana",
+  { id: "petrin", cat: "cultura", icon: "tower", name: "Collina di Petřín e torre", area: "Malá Strana",
     lat: 50.0833, lng: 14.3953, note: "Panorama sulla città dalla torre-belvedere. A gennaio possibile ghiaccio sui sentieri." },
-  { id: "vysehrad", cat: "cultura", emoji: "🏯", name: "Vyšehrad", area: "Vyšehrad",
+  { id: "vysehrad", cat: "cultura", icon: "castle", name: "Vyšehrad", area: "Vyšehrad",
     lat: 50.0645, lng: 14.4180, note: "Fortezza sul fiume con parco e vista, meno turistica del centro." },
-  { id: "casadanzante", cat: "cultura", emoji: "💃", name: "Casa Danzante", area: "Nové Město, lungofiume",
+  { id: "casadanzante", cat: "cultura", name: "Casa Danzante", area: "Nové Město, lungofiume",
     lat: 50.0756, lng: 14.4143, note: "Edificio moderno di Gehry. Terrazza panoramica con bar." },
-  { id: "lennon", cat: "cultura", emoji: "🎨", name: "Muro di John Lennon", area: "Malá Strana",
+  { id: "lennon", cat: "cultura", name: "Muro di John Lennon", area: "Malá Strana",
     lat: 50.0861, lng: 14.4054, note: "Muro dei graffiti, cambia continuamente. Visita di pochi minuti." },
-  { id: "museonaz", cat: "cultura", emoji: "🏛️", name: "Museo Nazionale e Piazza Venceslao", area: "Nové Město",
+  { id: "museonaz", cat: "cultura", name: "Museo Nazionale e Piazza Venceslao", area: "Nové Město",
     lat: 50.0793, lng: 14.4301, note: "Edificio neorinascimentale sopra la piazza. Verificare se la sede storica è aperta." },
 ];
 
 // Albergo: punto fisso, sempre visibile (non dipende dai filtri).
 // POSIZIONE PROVVISORIA (centro città): sostituire lat/lng/area con l'indirizzo reale.
-export const HOTEL = { id: "hotel", name: "Albergo", area: "Posizione provvisoria",
+export const HOTEL = { id: "hotel", icon: "bed", name: "Albergo", area: "Posizione provvisoria",
   lat: 50.0813, lng: 14.4280, note: "Posizione di prova: da aggiornare con l'indirizzo vero." };
