@@ -27,7 +27,8 @@ Alternativa: Firebase Hosting (`firebase deploy`).
 - Un punto quiz compare sulla mappa entro **500 m**; la domanda si vede e si risponde entro **100 m** (250 m per le 5 domande iniziali sui monumenti, perché le loro coordinate sono approssimate). Un solo tentativo, scelta multipla.
 - Punti: 1° 10, 2° 7, 3° 5, dagli altri 3 (modificabili in `quiz.js`).
 - Ogni utente può scrivere 2 domande; chi le scrive prende gli stessi punti di ogni risposta corretta. Gli admin ne scrivono quante vogliono e non prendono punti autore.
-- **Diventare admin**: apri "Io", copia il tuo ID, mettilo in `ADMIN_UIDS` in `quiz.js` (es. `["a1b2c3d4e5f6"]`) e ricarica.
+- **Diventare admin**: apri il link `https://TUO-SITO/?admin=CODICE` (una volta per dispositivo/browser: l'indirizzo viene ripulito da solo), oppure scrivi il codice nel campo "Codice admin" della finestra "Io". Resta valido finché non cancelli i dati del sito. In `quiz.js` c'è solo l'impronta del codice; per cambiarlo sostituisci `ADMIN_HASH` con lo SHA-256 del nuovo codice (`printf '%s' 'nuovocodice' | sha256sum`). Facoltativo: `ADMIN_UIDS` per ID fissi.
+- Per azzerare il quiz (risposte e domande) cancella il nodo `groups/<codice>/quiz` dal Realtime Database.
 - Limiti: niente login e le risposte giuste stanno nel database, quindi chi sa usare gli strumenti del browser può barare o superare il limite delle 2 domande. Va bene tra amici, non è a prova di furbo.
 
 ## Limiti da conoscere

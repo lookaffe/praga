@@ -50,9 +50,15 @@
   .qopt { display:flex; gap:8px; align-items:flex-start; margin:6px 0; font-size:14px; }
   .qopt input { margin-top:3px; }
   .qok { color:#1b6e2a; font-weight:700; } .qno { color:#b00020; font-weight:700; }
-  .board { list-style:none; margin:8px 0 0; padding:0; }
-  .board li { display:flex; justify-content:space-between; padding:7px 4px; border-bottom:1px solid var(--cream2); font-size:15px; }
-  .board li.me { font-weight:700; background:#fbe9b7; border-radius:6px; }
+  .board { list-style:none; margin:8px 0 0; padding:0; max-height:45vh; overflow:auto; }
+  .board li { display:grid; grid-template-columns:30px 1fr auto; align-items:center; gap:10px; padding:9px 8px; border-bottom:1px solid var(--cream2); }
+  .board li.mine { background:#fbe9b7; border-radius:10px; border-bottom-color:transparent; }
+  .board .pos { width:28px; height:28px; border-radius:50%; background:var(--cream2); color:var(--brown); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:14px; }
+  .board li:nth-child(1) .pos { background:#e0a21b; } .board li:nth-child(2) .pos { background:#cfcfcf; } .board li:nth-child(3) .pos { background:#d49a62; }
+  .board .nm { min-width:0; overflow-wrap:anywhere; font-weight:600; font-size:16px; color:var(--brown); }
+  .board .sub { display:block; font-size:12px; font-weight:400; color:var(--muted); }
+  .board .pts { font-weight:700; font-size:18px; white-space:nowrap; color:var(--brown); }
+  .board .pts small { font-size:12px; font-weight:400; color:var(--muted); }
   .hint { font-size:12px; color:var(--muted); margin:6px 0 0; }
 </style>
 </head>
@@ -74,6 +80,8 @@
     <p style="margin:0;font-size:13px;color:var(--muted)">Il nome compare sulla mappa agli altri quando condividi la posizione.</p>
     <p class="hint">Il tuo ID (serve per essere admin del quiz): <b id="myId"></b></p>
     <label>Il tuo nome</label><input id="inName" maxlength="20" required autocomplete="off">
+    <label>Codice admin (opzionale)</label><input id="inAdmin" type="password" autocomplete="off" autocapitalize="none">
+    <p class="hint" id="adminState"></p>
     <div class="row"><button class="sec" value="cancel" formnovalidate>Annulla</button><button class="main" value="ok">Salva</button></div>
   </form>
 </dialog>
@@ -121,7 +129,7 @@
 import { CATEGORIES, PLACES, HOTEL } from "./places.js";
 import { icon } from "./icons.js";
 import { GROUP_CODE } from "./settings.js";
-import { REVEAL_M, ANSWER_M, pointsForRank, distM, MAX_USER_QUESTIONS, AUTHOR_SHARE, ADMIN_UIDS, QUIZ_SEED } from "./quiz.js";
+import { REVEAL_M, ANSWER_M, pointsForRank, distM, MAX_USER_QUESTIONS, AUTHOR_SHARE, ADMIN_UIDS, ADMIN_HASH, QUIZ_SEED } from "./quiz.js";
 import { firebaseConfig } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
@@ -185,7 +193,7 @@ if (!uid) { uid = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random(
 let name = store.get("name") || "";
 const code = GROUP_CODE;
 let sharing = false, watchId = null, lastWrite = 0, myPos = null, myAcc = null;
-const isAdmin = ADMIN_UIDS.includes(uid);
+let isAdmin = ADMIN_UIDS.includes(uid);
 let quizDb = {}, questions = [];
 const quizMarkers = {}, quizState = {};
 const quizLayer = L.layerGroup().addTo(map);
@@ -283,12 +291,14 @@ function ready() {
   return true;
 }
 // ---------- Dialog profilo ----------
-function openGroup() { $("myId").textContent = uid; $("inName").value = name; $("dlgGroup").showModal(); }
+function openGroup() { $("myId").textContent = uid; $("inAdmin").value = ""; $("adminState").textContent = isAdmin ? "Sei admin." : "Non sei admin.";  $("inName").value = name; $("dlgGroup").showModal(); }
 $("btnGroup").onclick = openGroup;
 $("formGroup").addEventListener("submit", (ev) => {
   if (ev.submitter && ev.submitter.value === "cancel") return;
   const n = $("inName").value.trim(); if (!n) return;
   name = n; store.set("name", n);
+  const ak = $("inAdmin").value.trim();
+  if (ak) tryAdmin(ak).then((ok) => { if (!ok) alert("Codice admin errato."); });
   $("status").textContent = sharing ? `${name} · posizione attiva` : "Non condividi la posizione";
   if (!db) $("status").textContent += " (senza Firebase)";
 });
@@ -375,7 +385,7 @@ const mergeQuestions = () => {
 const radiusOf = (q) => q.radius || ANSWER_M;
 function stateOf(q) {
   if (q.by === uid) return "own";
-  if (q.answers[uid]) return "answered";
+  if (q.answers[uid] && !q.answers[uid].pending) return "answered";
   if (!myPos) return "nopos";
   if (myAcc != null && myAcc > radiusOf(q)) return "noacc";
   if (q._d > radiusOf(q)) return "far";
@@ -416,18 +426,28 @@ function wireQuizPopup(root, id) {
     catch (e) { msg.textContent = "Errore: " + e.message; btn.disabled = false; }
   };
 }
+// Risposta in UNA transazione: controlla di non aver già risposto, assegna la posizione in classifica
+// e salva tutto insieme. Se fallisce non resta nulla a metà e si può riprovare.
 async function submitAnswer(q, choice) {
-  const base = `groups/${code}/quiz/${q.id}`, aref = fb.ref(db, `${base}/answers/${uid}`);
-  const claim = await fb.runTransaction(aref, (cur) => (cur === null ? { choice, name, ts: Date.now(), pending: true } : undefined));
-  if (!claim.committed) return;
-  const correct = choice === q.correct; let rank = null, points = 0;
-  if (correct) {
-    const r = await fb.runTransaction(fb.ref(db, `${base}/ncorrect`), (n) => (n || 0) + 1);
-    rank = r.snapshot.val(); points = pointsForRank(rank);
-  }
-  await fb.update(aref, { correct, rank, points, pending: null });
+  const correct = choice === q.correct;
+  const res = await fb.runTransaction(fb.ref(db, `groups/${code}/quiz/${q.id}`), (cur) => {
+    const node = cur ? JSON.parse(JSON.stringify(cur)) : {};
+    node.answers = node.answers || {};
+    const prev = node.answers[uid];
+    if (prev && !prev.pending) return undefined;
+    const ans = { choice, name, ts: Date.now(), correct };
+    if (correct) { node.ncorrect = (node.ncorrect || 0) + 1; ans.rank = node.ncorrect; ans.points = pointsForRank(ans.rank); }
+    else ans.points = 0;
+    node.answers[uid] = ans;
+    return node;
+  });
+  if (!res.committed) throw new Error("Hai già risposto a questa domanda.");
 }
 function refreshQuiz() {
+  if (!db) {  // il quiz richiede il database condiviso: senza, nessun punto sulla mappa
+    for (const id of Object.keys(quizMarkers)) { quizMarkers[id].remove(); delete quizMarkers[id]; delete quizState[id]; }
+    return;
+  }
   questions = mergeQuestions();
   const ids = new Set();
   for (const q of questions) {
@@ -468,7 +488,9 @@ function computeBoard() {
 const myQuestionCount = () => questions.filter((q) => q.by === uid).length;
 function renderBoard() {
   const rows = computeBoard();
-  $("boardList").innerHTML = rows.length ? rows.map((r, i) => `<li class="${r.id === uid ? "me" : ""}"><span>${i + 1}. ${esc(r.name)}</span><span>${r.pts} pt</span></li>`).join("") : "<li><span>Ancora nessun punto</span></li>";
+  $("boardList").innerHTML = rows.length ? rows.map((r, i) =>
+    `<li class="${r.id === uid ? "mine" : ""}"><span class="pos">${i + 1}</span><span class="nm">${esc(r.name)}<span class="sub">${r.ok} ${r.ok === 1 ? "corretta" : "corrette"}${r.asked ? " · " + r.asked + (r.asked === 1 ? " domanda scritta" : " domande scritte") : ""}</span></span><span class="pts">${r.pts} <small>pt</small></span></li>`
+  ).join("") : '<li style="display:block;color:var(--muted)">Ancora nessun punto: rispondi a un quiz!</li>';
   $("boardInfo").textContent = isAdmin ? "Sei admin: domande illimitate, senza punti autore." : `Domande scritte da te: ${myQuestionCount()}/${MAX_USER_QUESTIONS}. Ogni risposta corretta alle tue domande ti dà gli stessi punti di chi risponde.`;
 }
 $("btnQuiz").onclick = () => {
@@ -508,6 +530,23 @@ $("formQ").addEventListener("submit", (ev) => {
     .catch((e) => alert("Salvataggio fallito: " + e.message));
   qPending = null;
 });
+
+// ---------- Admin con codice ----------
+async function sha256(s) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+async function tryAdmin(pass) {
+  try {
+    if (pass && (await sha256(pass.trim())) === ADMIN_HASH) { store.set("adminKey", pass.trim()); isAdmin = true; refreshQuiz(); return true; }
+  } catch {}
+  return false;
+}
+{
+  const ap = new URLSearchParams(location.search).get("admin");
+  if (ap) tryAdmin(ap).then(() => { try { history.replaceState(null, "", location.pathname); } catch {} });
+  else if (store.get("adminKey")) tryAdmin(store.get("adminKey"));
+}
 
 if (code) connectGroup();
 if (name) $("status").textContent = name + (db ? "" : " (senza Firebase)");

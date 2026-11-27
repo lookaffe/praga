@@ -7,9 +7,15 @@ export const POINTS_OTHERS = 3;     // dal 4° in poi
 export const MAX_USER_QUESTIONS = 2; // domande che può aggiungere un utente non admin
 export const AUTHOR_SHARE = 1;       // l'autore (non admin) prende AUTHOR_SHARE x i punti di ogni risposta corretta
 
-// ID degli admin: possono aggiungere domande senza limite e vedono sempre tutti i punti quiz.
-// Il tuo ID si legge nella finestra "Gruppo" dell'app. Esempio: ["a1b2c3d4e5f6"]
-export const ADMIN_UIDS = ["161eea6a-7cf", "3bd75f51-951"];
+// Admin = domande illimitate, vede sempre tutti i punti quiz, niente punti autore.
+// Si diventa admin in due modi (valgono per quel browser, finché non cancelli i dati del sito):
+//  1) aprendo il link  https://TUO-SITO/?admin=CODICE   (poi l'indirizzo viene ripulito)
+//  2) scrivendo il CODICE nel campo "Codice admin" della finestra "Io".
+// Qui sotto c'è solo l'impronta (SHA-256) del codice, non il codice. Per cambiarlo, sostituisci ADMIN_HASH
+// con lo SHA-256 del nuovo codice (es. su un terminale:  printf '%s' 'nuovocodice' | sha256sum).
+export const ADMIN_HASH = "8a0f9bf69c5c9efec010363dbd0688eeddb715dc2830dab0cc93f4bd686457a2";
+// Facoltativo: ID fissi sempre admin (l'ID si legge in "Io"; cambia se cancelli i dati del sito).
+export const ADMIN_UIDS = ["d939fb6e-153"];
 
 export const pointsForRank = (rank) => POINTS[rank - 1] ?? POINTS_OTHERS;
 

@@ -1,4 +1,4 @@
-const CACHE = "praga-v10";
+const CACHE = "praga-v14";
 const SHELL = ["./", "./index.html", "./places.js", "./icons.js", "./quiz.js", "./settings.js", "./config.js", "./manifest.webmanifest", "./favicon.png", "./icon-192.png", "./icon-512.png", "./vendor/leaflet.js", "./vendor/leaflet.css"];
 
 self.addEventListener("install", (e) => {
@@ -16,7 +16,8 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(req.url);
   if (url.hostname.endsWith("firebaseio.com") || url.hostname.includes("googleapis.com") || url.hostname.includes("nominatim")) return;
   e.respondWith(
-    fetch(req)
+    // Stesso dominio: rivalida sempre con il server (GitHub Pages fa tenere i file in cache ~10 min).
+    fetch(url.origin === self.location.origin ? new Request(req.url, { cache: "no-cache" }) : req)
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
